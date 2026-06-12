@@ -48,8 +48,17 @@ class TestHelpers:
     def test_escape_unescape_salt(self) -> None:
         assert escape_salt("") == DEFAULT_SALT_SENTINEL
         assert escape_salt("tenant1") == "tenant1"
+        assert escape_salt("tenant/1") == "tenant%2F1"
+        assert escape_salt("tenant 1") == "tenant%201"
+        assert escape_salt("tenant#1") == "tenant%231"
+        assert escape_salt("tenant?1") == "tenant%3F1"
+        assert escape_salt("tenant..1") == "tenant..1"
         assert unescape_salt(DEFAULT_SALT_SENTINEL) == ""
         assert unescape_salt("tenant1") == "tenant1"
+        assert unescape_salt("tenant%2F1") == "tenant/1"
+        assert unescape_salt("tenant%201") == "tenant 1"
+        assert unescape_salt("tenant%231") == "tenant#1"
+        assert unescape_salt("tenant%3F1") == "tenant?1"
 
 
 class TestQuotaCommandMetadata:

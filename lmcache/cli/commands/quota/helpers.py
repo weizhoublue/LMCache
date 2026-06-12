@@ -6,6 +6,7 @@ from typing import Any, Optional
 import json
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 
 # First Party
@@ -26,13 +27,17 @@ def normalize_url(url: str) -> str:
 
 
 def escape_salt(salt: str) -> str:
-    """Translate the empty-string salt to the URL sentinel."""
-    return DEFAULT_SALT_SENTINEL if salt == "" else salt
+    """Translate the empty-string salt to the URL sentinel and URL-encode it."""
+    if salt == "":
+        return DEFAULT_SALT_SENTINEL
+    return urllib.parse.quote(salt, safe="")
 
 
 def unescape_salt(salt: str) -> str:
-    """Translate the URL sentinel back to the empty-string salt."""
-    return "" if salt == DEFAULT_SALT_SENTINEL else salt
+    """Translate the URL sentinel back to the empty-string salt and URL-decode it."""
+    if salt == DEFAULT_SALT_SENTINEL:
+        return ""
+    return urllib.parse.unquote(salt)
 
 
 def http_request(
