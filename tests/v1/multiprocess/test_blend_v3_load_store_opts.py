@@ -445,3 +445,64 @@ def test_non_overlapping_after_prefix():
     # usable 10-18 in the greedy pass (dedup-first would drop both -> []).
     out = f([m(5, 13), m(10, 18)], 8)
     assert [r.cur_st for r in out] == [10]
+
+
+def test_sparse_classify_eviction_triggers_coordinator():
+    # First Party
+    from lmcache.v1.multiprocess.custom_types import CBMatchResult, IPCCacheEngineKey
+    from lmcache.v1.multiprocess.modules import blend_v3 as v3_mod
+
+    eng = MagicMock(spec=v3_mod.BlendV3Module)
+    eng._sparse_classify = v3_mod.BlendV3Module._sparse_classify.__get__(eng)
+
+    eng._pending_fp_lock = threading.Lock()
+    eng._pending_fp_hashes = set()
+    eng._stale_strike = {}
+    eng._STALE_STRIKE_THRESHOLD = 2
+    eng._token_range_matcher = MagicMock()
+    eng._coordinator = MagicMock()
+    eng._event_bus = MagicMock()
+    eng._lookup_obj_keys_lock = threading.Lock()
+    eng._lookup_obj_keys_cache = {}
+
+    key = MagicMock(spec=IPCCacheEngineKey)
+    key.world_size = 2
+    key.request_id = "rid"
+
+    h1 = b"hash1"
+    h2 = b"hash2"
+    matches = [
+        CBMatchResult(old_st=0, old_ed=4, cur_st=4, cur_ed=8, hash=h1),
+        CBMatchResult(old_st=4, old_ed=8, cur_st=8, cur_ed=12, hash=h2),
+    ]
+    per_hash_obj_keys = {h1: ["k1"], h2: ["k2"]}
+    expanded_uidx = [0, 1, 2, 3]
+
+    # Case 1: found_uidx has all elements. No stale hashes, no strikes.
+    found_uidx = {0, 1, 2, 3}
+    res = eng._sparse_classify(
+        key, matches, found_uidx, per_hash_obj_keys, expanded_uidx
+    )
+    assert len(res) == 2
+    eng._token_range_matcher.remove_chunks.assert_not_called()
+    eng._coordinator.enqueue_evict.assert_not_called()
+
+    # Case 2: found_uidx has only {0, 1}. h2 is stale.
+    found_uidx = {0, 1}
+    res = eng._sparse_classify(
+        key, matches, found_uidx, per_hash_obj_keys, expanded_uidx
+    )
+    assert len(res) == 1
+    assert res[0].hash == h1
+    assert eng._stale_strike[h2] == 1
+    eng._token_range_matcher.remove_chunks.assert_not_called()
+    eng._coordinator.enqueue_evict.assert_not_called()
+
+    # Case 3: h2 is stale again. Second strike for h2: strike becomes 2 >= 2.
+    res = eng._sparse_classify(
+        key, matches, found_uidx, per_hash_obj_keys, expanded_uidx
+    )
+    assert len(res) == 1
+    assert h2 not in eng._stale_strike
+    eng._token_range_matcher.remove_chunks.assert_called_once_with([h2])
+    eng._coordinator.enqueue_evict.assert_called_once_with([h2.hex()])

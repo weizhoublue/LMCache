@@ -703,6 +703,15 @@ class BlendV3Module:
                         self._stale_strike[h] = n
             if truly_evict:
                 self._token_range_matcher.remove_chunks(truly_evict)
+                if self._coordinator is not None:
+                    try:
+                        self._coordinator.enqueue_evict([h.hex() for h in truly_evict])
+                    except Exception:
+                        logger.warning(
+                            "CB coordinator evict failed for request %s "
+                            "(does not affect lookup correctness)",
+                            key.request_id,
+                        )
             self._event_bus.publish(
                 Event(
                     event_type=EventType.CB_CHUNKS_EVICTED,
