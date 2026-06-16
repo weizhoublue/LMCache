@@ -3,7 +3,6 @@
 from pathlib import Path
 from typing import Iterable, List, Optional
 import importlib
-import pkgutil
 
 # Third Party
 from fastapi import APIRouter
@@ -40,8 +39,21 @@ def discover_api_routers(
     """
     excluded = set(exclude or ())
     routers: List[APIRouter] = []
-    for _, module_name, _ in pkgutil.iter_modules([str(search_path)]):
-        if not module_name.endswith(suffix):
+
+    if not (search_path.exists() and search_path.is_dir()):
+        return routers
+
+    # Scan the physical directory to support all installation/linkage modes,
+    # including modern PEP 660 editable installations (where pkgutil.iter_modules
+    # can return empty results).
+    for path in sorted(search_path.iterdir()):
+        module_name = None
+        if path.is_file() and path.suffix == ".py":
+            module_name = path.stem
+        elif path.is_dir() and (path / "__init__.py").exists():
+            module_name = path.name
+
+        if module_name is None or not module_name.endswith(suffix):
             continue
         if module_name in excluded:
             logger.info("Skipping excluded API module: %s", module_name)
@@ -52,3 +64,4 @@ def discover_api_routers(
             routers.append(module.router)
             logger.info("Discovered API module: %s", module_name)
     return routers
+
