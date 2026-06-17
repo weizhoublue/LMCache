@@ -27,6 +27,11 @@ def test_register_returns_assigned_id():
     def handler(request: httpx.Request) -> httpx.Response:
         if request.method == "POST":
             assert request.url.path == "/instances"
+            # Standard
+            import json
+
+            data = json.loads(request.read().decode("utf-8"))
+            assert data["p2p_advertised_url"] == "tcp://127.0.0.1:7000"
             return httpx.Response(
                 200, json={"instance_id": "mp-xyz", "re_registered": False}
             )
@@ -35,7 +40,11 @@ def test_register_returns_assigned_id():
     async def run():
         async with _client(handler) as client:
             assigned = await register(
-                client, _BASE, http_port=8080, advertise_ip="127.0.0.1"
+                client,
+                _BASE,
+                http_port=8080,
+                advertise_ip="127.0.0.1",
+                p2p_advertised_url="tcp://127.0.0.1:7000",
             )
             assert assigned == "mp-xyz"
 
@@ -65,6 +74,11 @@ def test_keep_registered_heartbeats_then_deregisters():
 
     def handler(request: httpx.Request) -> httpx.Response:
         if request.method == "POST":
+            # Standard
+            import json
+
+            data = json.loads(request.read().decode("utf-8"))
+            assert data["p2p_advertised_url"] == "tcp://127.0.0.1:7000"
             return httpx.Response(
                 200, json={"instance_id": "i1", "re_registered": False}
             )
@@ -76,7 +90,9 @@ def test_keep_registered_heartbeats_then_deregisters():
 
     async def run():
         async with _client(handler) as client:
-            await _run_loop_briefly(client, instance_id="i1")
+            await _run_loop_briefly(
+                client, instance_id="i1", p2p_advertised_url="tcp://127.0.0.1:7000"
+            )
 
     asyncio.run(run())
     assert seen["heartbeats"] >= 1

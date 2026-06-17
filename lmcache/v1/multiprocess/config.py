@@ -162,6 +162,10 @@ class CoordinatorConfig:
     l2_event_flush_interval: float = 1.0
     """Seconds between L2 event flush attempts to the coordinator."""
 
+    p2p_advertised_url: str = ""
+    """URL the instance advertises for peer-to-peer transfers. Empty disables
+    P2P."""
+
 
 DEFAULT_COORDINATOR_CONFIG = CoordinatorConfig()
 
@@ -453,6 +457,13 @@ def add_coordinator_args(
         help="Seconds between L2 event flush attempts (must be > 0). "
         "Defaults to LMCACHE_COORDINATOR_L2_EVENT_FLUSH_INTERVAL, then 1.0.",
     )
+    group.add_argument(
+        "--coordinator-p2p-advertised-url",
+        type=str,
+        default=None,
+        help="URL the instance advertises for peer-to-peer transfers. "
+        "Defaults to LMCACHE_COORDINATOR_P2P_ADVERTISED_URL; empty disables P2P.",
+    )
     return parser
 
 
@@ -531,10 +542,17 @@ def parse_args_to_coordinator_config(
             "got %s" % l2_event_flush_interval
         )
 
+    p2p_advertised_url = (
+        args.coordinator_p2p_advertised_url
+        if args.coordinator_p2p_advertised_url is not None
+        else os.getenv("LMCACHE_COORDINATOR_P2P_ADVERTISED_URL", "")
+    )
+
     return CoordinatorConfig(
         url=url,
         advertise_ip=advertise_ip,
         heartbeat_interval=heartbeat_interval,
         l2_event_reporting=l2_event_reporting,
         l2_event_flush_interval=l2_event_flush_interval,
+        p2p_advertised_url=p2p_advertised_url,
     )

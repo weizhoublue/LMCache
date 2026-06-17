@@ -27,6 +27,7 @@ _COORD_ENV = (
     "LMCACHE_COORDINATOR_URL",
     "LMCACHE_COORDINATOR_ADVERTISE_IP",
     "LMCACHE_COORDINATOR_HEARTBEAT_INTERVAL",
+    "LMCACHE_COORDINATOR_P2P_ADVERTISED_URL",
 )
 
 
@@ -48,6 +49,7 @@ def test_defaults_disable_registration():
     assert config.url == ""  # empty url => registration disabled
     assert config.advertise_ip == ""
     assert config.heartbeat_interval == 5.0
+    assert config.p2p_advertised_url == ""
 
 
 def test_flags_are_parsed():
@@ -59,27 +61,45 @@ def test_flags_are_parsed():
             "10.0.0.5",
             "--coordinator-heartbeat-interval",
             "2.5",
+            "--coordinator-p2p-advertised-url",
+            "tcp://10.0.0.5:7000",
         ]
     )
     assert config.url == "http://coord:9300"
     assert config.advertise_ip == "10.0.0.5"
     assert config.heartbeat_interval == 2.5
+    assert config.p2p_advertised_url == "tcp://10.0.0.5:7000"
 
 
 def test_env_fallback(monkeypatch):
     monkeypatch.setenv("LMCACHE_COORDINATOR_URL", "http://env-coord:9300")
     monkeypatch.setenv("LMCACHE_COORDINATOR_ADVERTISE_IP", "192.168.1.2")
     monkeypatch.setenv("LMCACHE_COORDINATOR_HEARTBEAT_INTERVAL", "3")
+    monkeypatch.setenv(
+        "LMCACHE_COORDINATOR_P2P_ADVERTISED_URL", "tcp://192.168.1.2:7000"
+    )
     config = _parse([])
     assert config.url == "http://env-coord:9300"
     assert config.advertise_ip == "192.168.1.2"
     assert config.heartbeat_interval == 3.0
+    assert config.p2p_advertised_url == "tcp://192.168.1.2:7000"
 
 
 def test_flag_beats_env(monkeypatch):
     monkeypatch.setenv("LMCACHE_COORDINATOR_URL", "http://env-coord:9300")
-    config = _parse(["--coordinator-url", "http://flag-coord:9300"])
+    monkeypatch.setenv(
+        "LMCACHE_COORDINATOR_P2P_ADVERTISED_URL", "tcp://192.168.1.2:7000"
+    )
+    config = _parse(
+        [
+            "--coordinator-url",
+            "http://flag-coord:9300",
+            "--coordinator-p2p-advertised-url",
+            "tcp://flag-coord:7000",
+        ]
+    )
     assert config.url == "http://flag-coord:9300"
+    assert config.p2p_advertised_url == "tcp://flag-coord:7000"
 
 
 @pytest.mark.parametrize("interval", ["0", "-1", "nan", "inf"])

@@ -37,12 +37,8 @@ from lmcache.v1.multiprocess.config import (
     parse_args_to_http_frontend_config,
     parse_args_to_mp_server_config,
 )
-from lmcache.v1.multiprocess.http_api_registry import (
-    HTTPAPIRegistry,
-)
-from lmcache.v1.multiprocess.mp_runtime_plugin_launcher import (
-    MPRuntimePluginLauncher,
-)
+from lmcache.v1.multiprocess.http_api_registry import HTTPAPIRegistry
+from lmcache.v1.multiprocess.mp_runtime_plugin_launcher import MPRuntimePluginLauncher
 from lmcache.v1.multiprocess.server import run_cache_server
 
 logger = init_logger(__name__)
@@ -127,6 +123,7 @@ async def lifespan(app: FastAPI):
                 instance_id=mp_config.instance_id,
                 advertise_ip=coordinator_config.advertise_ip,
                 heartbeat_interval=coordinator_config.heartbeat_interval,
+                p2p_advertised_url=coordinator_config.p2p_advertised_url,
             )
         )
     # Optionally report L2 store/lookup events to the coordinator for
