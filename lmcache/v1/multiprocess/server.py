@@ -215,6 +215,7 @@ def _build_modules(
         from lmcache.v1.multiprocess.modules.blend import BlendModule
 
         blend_module = BlendModule(ctx)
+        liveness_targets.append(blend_module)
 
     # "blend" selects CacheBlend V3 (the current implementation).
     if mp_config.engine_type == "blend":

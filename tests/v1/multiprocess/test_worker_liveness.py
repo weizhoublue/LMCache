@@ -290,6 +290,26 @@ def test_blend_drop_instance_state_drops_rope_state() -> None:
     module.drop_instance_state(999)  # nothing held -> no error
 
 
+def test_legacy_blend_drop_instance_state_drops_gpu_context() -> None:
+    """drop_instance_state unregisters the reaped instance's CB GPU context."""
+    # First Party
+    from lmcache.v1.multiprocess.modules.blend import BlendModule
+
+    module = BlendModule.__new__(BlendModule)
+    module._cb_gpu_contexts = {5: MagicMock()}
+    module._cb_gpu_context_meta = {5: ("test_model", 1)}
+    module._ctx = MagicMock()
+
+    module.drop_instance_state(5)
+
+    assert 5 not in module._cb_gpu_contexts
+    assert 5 not in module._cb_gpu_context_meta
+    module._ctx.layout_desc_registry.unregister.assert_called_once_with("test_model", 1)
+
+    # Calling with non-existent instance should be a no-op
+    module.drop_instance_state(999)
+
+
 def test_config_rejects_bad_reap_timeouts() -> None:
     """Validation rejects sub-floor reap timeouts and undersized grace."""
     with pytest.raises(ValueError, match="reap timeout"):

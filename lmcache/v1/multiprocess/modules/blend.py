@@ -32,6 +32,7 @@ from lmcache.v1.multiprocess.custom_types import (
 from lmcache.v1.multiprocess.engine_context import MPCacheServerContext
 from lmcache.v1.multiprocess.engine_module import (
     HandlerSpec,
+    InstanceLivenessTarget,
     ThreadPoolType,
 )
 from lmcache.v1.multiprocess.protocols.base import RequestType
@@ -311,7 +312,7 @@ def _unique_token_coverage(results: list[CBMatchResult]) -> int:
     return coverage
 
 
-class BlendModule:
+class BlendModule(InstanceLivenessTarget):
     """Handles blend (context-blend / cross-request KV reuse) operations.
 
     Owns CB-specific GPU context registrations and the token range matcher.
@@ -463,6 +464,16 @@ class BlendModule:
                 "Attempted to unregister non-existent CB KV cache for instance_id %d",
                 instance_id,
             )
+
+    def drop_instance_state(self, instance_id: int) -> None:
+        """Drop blend state for a reaped instance (InstanceLivenessTarget hook).
+
+        Args:
+            instance_id: The reaped worker's instance ID.
+        """
+        if instance_id in self._cb_gpu_contexts:
+            self.cb_unregister_kv_cache(instance_id)
+            logger.info("Dropped CB KV cache for reaped instance %d", instance_id)
 
     def cb_lookup_pre_computed(self, key: IPCCacheServerKey) -> list[CBMatchResult]:
         """Lookup the pre-computed chunks in the underlying storage.
