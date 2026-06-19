@@ -1382,14 +1382,31 @@ class PDBackendAsync(AllocatorBackendInterface):
                             pass
                     mem_obj = self.allocate(torch.Size(shape), dtype, fmt)
 
-                alloc_indexes.append(mem_obj.meta.address)
-                self.put(key, mem_obj)
-                logger.debug(
-                    "[RECEIVER] alloc key=%s addr=%d ref_count=%d",
-                    key_str,
-                    mem_obj.meta.address,
-                    mem_obj.get_ref_count(),
-                )
+                is_duplicate = False
+                with self.data_lock:
+                    if key in self.data:
+                        self.data[key].ref_count_up()
+                        is_duplicate = True
+
+                if is_duplicate:
+                    logger.info(
+                        "Duplicate key %s found during allocation recheck; "
+                        "pinning existing and dropping new object.",
+                        key,
+                    )
+                    mem_obj.ref_count_down()
+                    already_sent_indexes.append(idx)
+                    async with self._alloc_freed_condition:
+                        self._alloc_freed_condition.notify_all()
+                else:
+                    alloc_indexes.append(mem_obj.meta.address)
+                    self.put(key, mem_obj)
+                    logger.debug(
+                        "[RECEIVER] alloc key=%s addr=%d ref_count=%d",
+                        key_str,
+                        mem_obj.meta.address,
+                        mem_obj.get_ref_count(),
+                    )
 
                 current_batch_keys.append(key_str)
                 logger.debug(

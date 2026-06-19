@@ -1295,3 +1295,73 @@ def test_dedup_pin_then_remove_verifies_call_sequence(async_receiver):
     async_receiver.remove(key)
     assert obj.ref_count_down.call_count == 2
     assert key not in async_receiver.data  # ref_count=0 → deleted
+
+
+def test_receiver_concurrent_duplicate_allocation(async_receiver):
+    """
+    Simulate two concurrent allocation requests for the same key K.
+    Verify that only one new object is registered and the other task
+    correctly pins the existing one and returns already_sent_indexes.
+    """
+    key = _make_key(17000)
+    obj_1 = _make_mem_obj(idx=101)
+    obj_2 = _make_mem_obj(idx=102)
+
+    # We want to mock `async_receiver.allocate` such that:
+    # 1st call -> None (Task 1 initial check failed)
+    # 2nd call -> None (Task 2 initial check failed)
+    # 3rd call -> obj_1 (Task 1 wakes up)
+    # 4th call -> obj_2 (Task 2 wakes up)
+    alloc_calls = []
+
+    def mock_allocate(*args, **kwargs):
+        alloc_calls.append(True)
+        call_count = len(alloc_calls)
+        if call_count == 1:
+            return None
+        elif call_count == 2:
+            return None
+        elif call_count == 3:
+            return obj_1
+        elif call_count == 4:
+            return obj_2
+        return None
+
+    async_receiver.allocate = mock_allocate
+
+    req_1 = _make_alloc_req([key], req_id="req-1", total_chunks=1, is_last_batch=True)
+    req_2 = _make_alloc_req([key], req_id="req-2", total_chunks=1, is_last_batch=True)
+
+    async def wake_up():
+        await asyncio.sleep(0.05)
+        async with async_receiver._alloc_freed_condition:
+            async_receiver._alloc_freed_condition.notify_all()
+
+    async def run_concurrent():
+        return await asyncio.gather(
+            async_receiver._async_allocate_and_put(req_1),
+            async_receiver._async_allocate_and_put(req_2),
+            wake_up(),
+        )
+
+    # Run the concurrent allocation
+    res_1, res_2, _ = asyncio.run(run_concurrent())
+
+    # One task must succeed and the other must identify it as duplicate
+    if len(res_1.remote_indexes) == 1:
+        success_res, dup_res = res_1, res_2
+    else:
+        success_res, dup_res = res_2, res_1
+
+    # The successful task returns the address and empty already_sent
+    assert success_res.remote_indexes == [101]
+    assert success_res.already_sent_indexes == []
+
+    # The duplicate task returns already_sent and empty remote_indexes
+    assert dup_res.remote_indexes == []
+    assert dup_res.already_sent_indexes == [0]
+
+    # obj_1 is registered and pinned by duplicate request (ref_count 2)
+    assert obj_1.get_ref_count() == 2
+    # obj_2 is the dropped one: its ref_count goes to 0
+    assert obj_2.get_ref_count() == 0
