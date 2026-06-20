@@ -31,7 +31,9 @@ from lmcache.v1.multiprocess.config import (
     DEFAULT_COORDINATOR_CONFIG,
     CoordinatorConfig,
     MPServerConfig,
+    add_coordinator_args,
     add_mp_server_args,
+    parse_args_to_coordinator_config,
     parse_args_to_mp_server_config,
 )
 from lmcache.v1.multiprocess.engine_context import MPCacheServerContext
@@ -439,6 +441,7 @@ def parse_args():
     add_mp_server_args(parser)
     add_storage_manager_args(parser)
     add_observability_args(parser)
+    add_coordinator_args(parser)
     return parser.parse_args()
 
 
@@ -447,8 +450,10 @@ if __name__ == "__main__":
     mp_config = parse_args_to_mp_server_config(args)
     storage_manager_config = parse_args_to_config(args)
     obs_config = parse_args_to_observability_config(args)
+    coordinator_config = parse_args_to_coordinator_config(args)
     run_cache_server(
         mp_config=mp_config,
         storage_manager_config=storage_manager_config,
         obs_config=obs_config,
+        coordinator_config=coordinator_config,
     )

@@ -23,7 +23,7 @@ from lmcache.v1.multiprocess.config import (
 from lmcache.v1.multiprocess.server import run_cache_server
 
 
-def test_run_cache_server_p2p_without_coordinator():
+def test_run_cache_server_p2p_without_coordinator() -> None:
     # If P2P is enabled but coordinator URL is empty,
     # run_cache_server should raise ValueError.
     mp_config = MPServerConfig(p2p_config=P2PConfig(advertise_url="127.0.0.1:8555"))
@@ -45,7 +45,7 @@ def test_run_cache_server_p2p_without_coordinator():
         )
 
 
-def test_run_cache_server_p2p_with_incompatible_l1():
+def test_run_cache_server_p2p_with_incompatible_l1() -> None:
     # If P2P is enabled and coordinator URL is configured, but L1 is
     # incompatible (e.g. GDS L1), run_cache_server should raise ValueError.
     mp_config = MPServerConfig(p2p_config=P2PConfig(advertise_url="127.0.0.1:8555"))
@@ -85,7 +85,7 @@ def test_run_cache_server_p2p_valid_config(
     mock_mp_cache_server,
     mock_build_modules,
     mock_ctx_class,
-):
+) -> None:
     # If P2P is enabled, coordinator URL is configured, and L1 is
     # compatible, run_cache_server should proceed. We mock the internal
     # components so it returns instead of spinning a ZMQ server.
