@@ -1382,7 +1382,12 @@ class LMCacheConnectorV1Impl:
         req_id = request.request_id
 
         # lookup_client is always initialized for scheduler role
-        assert self.lookup_client is not None
+        if self.lookup_client is None:
+            logger.warning(
+                "lookup_client is None. Returning 0 matched tokens for request %s.",
+                req_id,
+            )
+            return 0
 
         if (
             num_external_hit_tokens := self.lookup_client.lookup_cache(lookup_id=req_id)
@@ -1529,8 +1534,14 @@ class LMCacheConnectorV1Impl:
 
         # Clear local status in lookup client when a new request is
         # successfully scheduled.
-        assert self.lookup_client is not None
-        self.lookup_client.clear_lookup_status(request.request_id)
+        if self.lookup_client is None:
+            logger.warning(
+                "lookup_client is None. Skipping update state after "
+                "alloc for request %s.",
+                request.request_id,
+            )
+        else:
+            self.lookup_client.clear_lookup_status(request.request_id)
 
         kv_transfer_params = (
             request.kv_transfer_params
