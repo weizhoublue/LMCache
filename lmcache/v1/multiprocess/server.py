@@ -16,6 +16,7 @@ from lmcache.logging import init_logger
 from lmcache.v1.distributed.config import (
     StorageManagerConfig,
     add_storage_manager_args,
+    l1_exposes_single_memory_region,
     parse_args_to_config,
 )
 from lmcache.v1.distributed.storage_manager import StorageManager
@@ -30,7 +31,9 @@ from lmcache.v1.multiprocess.config import (
     DEFAULT_COORDINATOR_CONFIG,
     CoordinatorConfig,
     MPServerConfig,
+    add_coordinator_args,
     add_mp_server_args,
+    parse_args_to_coordinator_config,
     parse_args_to_mp_server_config,
 )
 from lmcache.v1.multiprocess.engine_context import MPCacheServerContext
@@ -306,6 +309,20 @@ def run_cache_server(
         If return_engine is True: tuple of (MessageQueueServer, MPCacheServer).
         If return_engine is False: None (blocks until interrupted).
     """
+    if mp_config.p2p_config.enabled:
+        if not coordinator_config.url:
+            raise ValueError(
+                "P2P requires a coordinator for peer discovery: set "
+                "--coordinator-url (or LMCACHE_COORDINATOR_URL) when "
+                "--p2p-advertise-url is set."
+            )
+        if not l1_exposes_single_memory_region(storage_manager_config):
+            raise ValueError(
+                "P2P requires a single L1 memory region the transfer channel "
+                "can register; it is incompatible with GDS L1 (--gds-l1-path) "
+                "and Device-DAX L1 (--l1-devdax-path)."
+            )
+
     # mp_config.instance_id is this server's single source of identity (set via
     # --instance-id, else a random UUID v4). Project it onto the OTel
     # service.instance.id unless observability set that attribute explicitly, so
@@ -425,6 +442,7 @@ def parse_args():
     add_mp_server_args(parser)
     add_storage_manager_args(parser)
     add_observability_args(parser)
+    add_coordinator_args(parser)
     return parser.parse_args()
 
 
@@ -433,8 +451,10 @@ if __name__ == "__main__":
     mp_config = parse_args_to_mp_server_config(args)
     storage_manager_config = parse_args_to_config(args)
     obs_config = parse_args_to_observability_config(args)
+    coordinator_config = parse_args_to_coordinator_config(args)
     run_cache_server(
         mp_config=mp_config,
         storage_manager_config=storage_manager_config,
         obs_config=obs_config,
+        coordinator_config=coordinator_config,
     )
